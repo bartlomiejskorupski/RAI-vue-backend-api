@@ -31,7 +31,7 @@ public class BusStopsController : Controller
         if(!_cache.TryGetValue(_allStopsCacheKey, out object? allStops))
         {
             await Console.Out.WriteLineAsync("NOT CACHED, CACHING...");
-            allStops = await FetchUrl(_allStopsUrl);
+            allStops = await FetchUrl(_allStopsUrl, typeof(ZTMAllStopsResponse));
             var cacheEntryOpts = new MemoryCacheEntryOptions
             {
                 AbsoluteExpiration = DateTime.Now.AddMinutes(10),
@@ -40,7 +40,10 @@ public class BusStopsController : Controller
             _cache.Set(_allStopsCacheKey, allStops, cacheEntryOpts);
         }
         await Console.Out.WriteLineAsync("RETURNING ALL STOPS");
-        return Ok(allStops);
+
+        var allStopsRes = allStops as ZTMAllStopsResponse;
+
+        return Ok(allStopsRes!.FirstOrDefault().Value);
     }
 
     [HttpGet("favorite")]
@@ -73,12 +76,12 @@ public class BusStopsController : Controller
     }
 
     [HttpDelete("favorite")]
-    public async Task<IActionResult> DeleteFromFavorites(int id)
+    public async Task<IActionResult> DeleteFromFavorites(int stopId)
     {
         var user = await GetUserFromClaim();
         if (user == null) return NotFound();
 
-        var removed = user.FavoriteBusStops.Where(bs => bs.Id == id).FirstOrDefault();
+        var removed = user.FavoriteBusStops.Where(bs => bs.StopId == stopId).FirstOrDefault();
 
         if (removed == null)
             return NotFound();
@@ -105,11 +108,11 @@ public class BusStopsController : Controller
     }
 
     [NonAction]
-    private async Task<object?> FetchUrl(string url)
+    private async Task<object?> FetchUrl(string url, Type? jsonType = null)
     {
         var client = new HttpClient();
         var resMsg = await client.GetAsync(url);
-        return  await resMsg.Content.ReadFromJsonAsync(typeof(object));
+        return  await resMsg.Content.ReadFromJsonAsync(jsonType ?? typeof(object));
     }
 
 }
